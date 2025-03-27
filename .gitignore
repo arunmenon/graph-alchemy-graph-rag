@@ -1,0 +1,34 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Local development settings
+.env
+.env.local
+
+# Schema cache files (keep the directory structure)
+schema/cache/*
+!schema/cache/.gitkeep
+
+# Log files
+*.log
+logs/
+api_server.log
+api_log.txt
+nohup.out
+
+# Generated testing files
+test_example.json
+test_examples_output.json
+failed_query_*.log

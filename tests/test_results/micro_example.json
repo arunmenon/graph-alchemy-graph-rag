@@ -1,0 +1,12 @@
+[
+  {
+    "question": "What are the names of all tables contained in the dataset named 'Sales Data'?",
+    "query_plan": [
+      {
+        "purpose": "Retrieve information about Dataset and Table via CONTAINS",
+        "cypher": "MATCH (d:Dataset {name: 'Sales Data'})-[:CONTAINS]->(t:Table) RETURN t.name"
+      }
+    ],
+    "thought_process": "This query finds the dataset with the name 'Sales Data' and retrieves the names of all tables that are contained within it by following the CONTAINS relationship."
+  }
+]

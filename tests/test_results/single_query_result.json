@@ -1,0 +1,35 @@
+{
+  "query_plan": [
+    {
+      "purpose": "Identify tables that contain sensitive customer data like PII",
+      "cypher": "MATCH (t:Table)-[:HAS_COLUMN]->(c:Column) WHERE c.business_purpose CONTAINS 'PII' RETURN DISTINCT t.name AS tableName, t.description AS tableDescription"
+    },
+    {
+      "purpose": "Identify business metrics dependent on tables with PII data",
+      "cypher": "MATCH (t:Table)-[:HAS_COLUMN]->(c:Column), (m:BusinessMetric)-[:HAS_METRIC]->(c) WHERE c.business_purpose CONTAINS 'PII' RETURN DISTINCT m.name AS metricName, m.definition AS metricDefinition"
+    },
+    {
+      "purpose": "Identify business processes dependent on tables with PII data",
+      "cypher": "MATCH (t:Table)-[:HAS_COLUMN]->(c:Column), (p:BusinessProcess)-[:INVOLVES]->(c) WHERE c.business_purpose CONTAINS 'PII' RETURN DISTINCT p.name AS processName, p.definition AS processDefinition"
+    }
+  ],
+  "thought_process": "The question asks for tables containing sensitive customer data, specifically PII, and the business metrics and processes that depend on this data. The first query identifies tables with columns marked for PII by checking the 'business_purpose' property of the Column nodes. The second query finds business metrics that are linked to these columns, using the HAS_METRIC relationship. The third query identifies business processes that involve these columns, using the INVOLVES relationship. By focusing on the 'business_purpose' property and the relevant relationships, these queries efficiently retrieve the necessary information to answer the question.",
+  "original_question": "Find tables that contain sensitive customer data like PII, and identify which business metrics and processes are dependent on this data",
+  "llm_decomposition": {
+    "query_plan": [
+      {
+        "purpose": "Identify tables that contain sensitive customer data like PII",
+        "cypher": "MATCH (t:Table)-[:HAS_COLUMN]->(c:Column) WHERE c.business_purpose CONTAINS 'PII' RETURN DISTINCT t.name AS tableName, t.description AS tableDescription"
+      },
+      {
+        "purpose": "Identify business metrics dependent on tables with PII data",
+        "cypher": "MATCH (t:Table)-[:HAS_COLUMN]->(c:Column), (m:BusinessMetric)-[:HAS_METRIC]->(c) WHERE c.business_purpose CONTAINS 'PII' RETURN DISTINCT m.name AS metricName, m.definition AS metricDefinition"
+      },
+      {
+        "purpose": "Identify business processes dependent on tables with PII data",
+        "cypher": "MATCH (t:Table)-[:HAS_COLUMN]->(c:Column), (p:BusinessProcess)-[:INVOLVES]->(c) WHERE c.business_purpose CONTAINS 'PII' RETURN DISTINCT p.name AS processName, p.definition AS processDefinition"
+      }
+    ],
+    "thought_process": "The question asks for tables containing sensitive customer data, specifically PII, and the business metrics and processes that depend on this data. The first query identifies tables with columns marked for PII by checking the 'business_purpose' property of the Column nodes. The second query finds business metrics that are linked to these columns, using the HAS_METRIC relationship. The third query identifies business processes that involve these columns, using the INVOLVES relationship. By focusing on the 'business_purpose' property and the relevant relationships, these queries efficiently retrieve the necessary information to answer the question."
+  }
+}
