@@ -6,14 +6,23 @@ This agent is responsible for:
 2. Executing Cypher queries
 3. Processing and formatting the results
 4. Validating and fixing queries before execution
+5. Performing semantic search for relevant entities
 """
 
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 
 from agents.agent_base import Agent
 from graph_db.graph_strategy_factory import GraphDatabaseFactory
 from agents.query_validator import QueryValidator
+
+# Conditionally import semantic search components
+try:
+    from semantic.embedding_provider import SentenceTransformerProvider, DummyEmbeddingProvider
+    from semantic.entity_retriever import SemanticEntityRetriever
+    SEMANTIC_SEARCH_AVAILABLE = True
+except ImportError:
+    SEMANTIC_SEARCH_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -22,24 +31,67 @@ logger = logging.getLogger(__name__)
 class GraphRetrieverAgent(Agent):
     """Agent that retrieves relevant information from the graph database."""
     
-    def __init__(self):
-        """Initialize the graph retriever agent."""
+    def __init__(self, enable_semantic_search: bool = True):
+        """
+        Initialize the graph retriever agent.
+        
+        Args:
+            enable_semantic_search: Whether to enable semantic search capabilities
+        """
         super().__init__()
         self.graph_db = None
         self.query_validator = QueryValidator()
+        self.semantic_entity_retriever = None
+        self.enable_semantic_search = enable_semantic_search and SEMANTIC_SEARCH_AVAILABLE
+        
+        if self.enable_semantic_search:
+            logger.info("Semantic search capabilities are enabled")
+        else:
+            if enable_semantic_search and not SEMANTIC_SEARCH_AVAILABLE:
+                logger.warning("Semantic search capabilities are not available (missing dependencies)")
+            else:
+                logger.info("Semantic search capabilities are disabled")
     
     def connect_to_database(self):
         """Connect to the Neo4j database."""
         logger.info("Connecting to graph database...")
         self.graph_db = GraphDatabaseFactory.create_graph_database_strategy()
-        self.graph_db.connect()
-        logger.info("Connected to graph database")
+        
+        # Connect to the database
+        connected = self.graph_db.connect()
+        
+        if connected:
+            logger.info("Connected to graph database")
+            
+            # Initialize semantic entity retriever if enabled
+            if self.enable_semantic_search and self.semantic_entity_retriever is None:
+                try:
+                    # Try to use SentenceTransformerProvider, fall back to DummyEmbeddingProvider if it fails
+                    try:
+                        embedding_provider = SentenceTransformerProvider()
+                        logger.info("Using SentenceTransformerProvider for semantic search")
+                    except Exception as e:
+                        logger.warning(f"Failed to initialize SentenceTransformerProvider: {e}")
+                        logger.warning("Falling back to DummyEmbeddingProvider")
+                        embedding_provider = DummyEmbeddingProvider()
+                    
+                    # Create semantic entity retriever
+                    self.semantic_entity_retriever = SemanticEntityRetriever(self.graph_db, embedding_provider)
+                    logger.info("Semantic entity retriever initialized")
+                except Exception as e:
+                    logger.error(f"Failed to initialize semantic search: {e}")
+                    self.enable_semantic_search = False
+        else:
+            logger.error("Failed to connect to graph database")
+            
+        return connected
     
     def close_database(self):
         """Close the database connection."""
         if self.graph_db:
             self.graph_db.close()
             logger.info("Closed database connection")
+            self.graph_db = None
     
     def execute(self, data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -79,6 +131,12 @@ class GraphRetrieverAgent(Agent):
         try:
             # Connect to the database
             self.connect_to_database()
+            
+            # Check if we should try semantic search
+            semantic_results = []
+            if self.enable_semantic_search and self.semantic_entity_retriever:
+                # Perform semantic search with the original question
+                semantic_results = self.perform_semantic_search(original_question)
             
             # Execute each query in the plan
             retrieved_context = []
@@ -138,13 +196,27 @@ class GraphRetrieverAgent(Agent):
                         'result_count': 0
                     })
             
+            # Add semantic search results if available
+            if semantic_results:
+                retrieved_context.append({
+                    'purpose': 'Semantic entity search',
+                    'original_cypher': f"SEMANTIC SEARCH: {original_question}",
+                    'executed_cypher': "Used vector similarity search",
+                    'was_modified': False,
+                    'validation_message': '',
+                    'result': semantic_results,
+                    'result_count': len(semantic_results),
+                    'is_semantic_search': True
+                })
+            
             # Close the database connection
             self.close_database()
             
             return {
                 'retrieved_context': retrieved_context,
                 'original_question': original_question,
-                'thought_process': input_data.get('thought_process', '')
+                'thought_process': input_data.get('thought_process', ''),
+                'semantic_search_enabled': self.enable_semantic_search
             }
             
         except Exception as e:
@@ -156,3 +228,31 @@ class GraphRetrieverAgent(Agent):
                 'error': str(e),
                 'original_question': original_question
             }
+    
+    def perform_semantic_search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Perform semantic search for relevant entities.
+        
+        Args:
+            query: The text query to search for
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of matching entities with similarity scores
+        """
+        if not self.semantic_entity_retriever:
+            logger.warning("Semantic entity retriever not initialized")
+            return []
+        
+        try:
+            logger.info(f"Performing semantic search for: {query}")
+            
+            # Execute the semantic search
+            results = self.semantic_entity_retriever.search(query, limit=limit)
+            
+            logger.info(f"Semantic search returned {len(results)} results")
+            
+            return results
+        except Exception as e:
+            logger.error(f"Error in semantic search: {e}")
+            return []

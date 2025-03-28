@@ -153,12 +153,42 @@ Return your answer in the following JSON format:
             purpose = item.get('purpose', 'Unknown purpose')
             result = item.get('result', [])
             error = item.get('error', '')
+            is_semantic_search = item.get('is_semantic_search', False)
             
             # Make result serializable before converting to JSON
             serializable_result = make_serializable(result)
             
             if error:
                 formatted_context.append(f"Query Purpose: {purpose}\nError: {error}\n")
+            elif is_semantic_search:
+                # Format semantic search results differently for better context
+                formatted_context.append(f"Query Purpose: {purpose} (Semantic Similarity Search)")
+                
+                # Add explanation of semantic search
+                formatted_context.append("The following entities were found using semantic vector search:")
+                
+                # Format each semantic search result
+                for idx, entity in enumerate(serializable_result[:10]):  # Limit to top 10 for readability
+                    entity_labels = ', '.join(entity.get('labels', []))
+                    entity_score = entity.get('score', 0)
+                    properties = entity.get('properties', {})
+                    
+                    # Format entity details
+                    entity_details = [f"Entity {idx+1} [{entity_labels}] (Similarity: {entity_score:.2f}):"]
+                    
+                    # Add key properties (name, title, id, etc.)
+                    for key in ['name', 'title', 'id', 'identifier', 'key', 'description']:
+                        if key in properties and properties[key]:
+                            entity_details.append(f"  - {key}: {properties[key]}")
+                    
+                    # Add a few more properties if available
+                    other_props = [f"  - {k}: {v}" for k, v in list(properties.items())[:5] 
+                                  if k not in ['name', 'title', 'id', 'identifier', 'key', 'description'] and v]
+                    entity_details.extend(other_props)
+                    
+                    formatted_context.append('\n'.join(entity_details))
+                
+                formatted_context.append("")  # Add empty line for readability
             else:
                 formatted_context.append(f"Query Purpose: {purpose}\nResults: {json.dumps(serializable_result, indent=2)}\n")
         
